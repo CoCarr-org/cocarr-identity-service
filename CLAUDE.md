@@ -16,9 +16,19 @@ services' conventions. **Working branch: `develop`.** Port **3050**.
 - **Firebase manages the ID token; this service manages the platform session.**
   `/auth/verify` takes a Firebase ID token, verifies it, upserts the identity,
   registers the device, and opens a session.
-- **Firebase optional in dev.** Unconfigured or `AUTH_DISABLED=true` → auth-guarded
-  routes get a synthetic actor; `/auth/verify` and password links return 503
-  (they genuinely need Firebase). Never disable auth in production.
+- **Auth fails CLOSED.** `authMiddleware` has three modes: a trusted
+  `x-gateway-key` edge (identity headers minted by cocarr-api-gateway, no second
+  token verification), a dev bypass requiring `AUTH_DISABLED=true` **and**
+  `NODE_ENV !== 'production'`, and direct bearer-token verification. With neither
+  `GATEWAY_KEY` nor `ADMIN_SERVICE_ACCOUNT` every guarded route answers **503
+  `AUTH_UNAVAILABLE`** (and `/auth/verify` + password links still 503 — they
+  genuinely need Firebase). Unconfigured credentials used to hand out a synthetic
+  actor, which made a credentials typo in production an open API.
+  `GET /v1/health` reports the live mode in its `auth` field.
+- **`GET /identity/:firebaseUid` is what the gateway calls** to resolve
+  `x-identity-id`, using the gateway key. Set `GATEWAY_KEY` here or that lookup
+  401s and the platform identity id stops being propagated (callers fall back to
+  the Firebase uid).
 - **No roles/permissions here.** Do not add them — authorization is a separate
   service. This service answers "who is this", not "what may they do".
 
